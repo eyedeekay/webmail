@@ -8,10 +8,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"html"
 	"os"
 	"strconv"
 	"text/template"
@@ -54,13 +54,13 @@ var (
 // Data used by the frame templates, common to every page
 //
 type FrameData struct {
-	Title string
+	Title      string
 	IsLoggedIn bool
 }
 
 func loadTemplates() {
 	tmpls = template.New("tmpls")
-	toParse := []string {
+	toParse := []string{
 		"data/frame-pre-content.html",
 		"data/frame-post-content.html",
 		"data/login.html",
@@ -77,7 +77,7 @@ func loadTemplates() {
 			// and can't be handled.
 			log.Fatal(err)
 		}
-		// Successive calls to Parse allow adding more templates to the 
+		// Successive calls to Parse allow adding more templates to the
 		// same object, if they are wrapped in a {{ define }} block.
 		tmpls, err = tmpls.Parse(string(f))
 		if err != nil {
@@ -194,7 +194,7 @@ func AddContext(next http.Handler) http.Handler {
 	})
 }
 
-// 
+//
 // Data required for rendering the login page
 //
 type LoginData struct {
@@ -215,7 +215,7 @@ func loginForm(response http.ResponseWriter, request *http.Request) {
 	// Execute the template into our buffer.
 	//
 	buf := &bytes.Buffer{}
-	err := t.Execute(buf, &LoginData{&FrameData{"Login", false},""})
+	err := t.Execute(buf, &LoginData{&FrameData{"Login", false}, ""})
 
 	//
 	// If there were errors, then show them.
@@ -365,7 +365,7 @@ func folderListHandler(response http.ResponseWriter, request *http.Request) {
 	x := &PageData{
 		&FrameData{"Folders", true},
 		"",
-		make([]IMAPFolder,0),
+		make([]IMAPFolder, 0),
 	}
 
 	//
@@ -744,7 +744,7 @@ func logoutHandler(response http.ResponseWriter, request *http.Request) {
 func main() {
 	//
 	// Load our HTML templates
-	// 
+	//
 	loadTemplates()
 
 	//

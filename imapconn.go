@@ -24,6 +24,7 @@ import (
 
 	imap "github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/eyedeekay/sam3/helper"
 	"github.com/jhillyerd/enmime"
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -40,10 +41,11 @@ type IMAPFolder struct {
 
 // IMAPConnection handles the the connection to a back-end IMAP(S) server.
 type IMAPConnection struct {
-	uri  string
-	user string
-	pass string
-	conn *client.Client
+	uri   string
+	user  string
+	pass  string
+	iconn net.Conn
+	conn  *client.Client
 }
 
 // Message is a very minimal structure for a message in a folder.
@@ -109,48 +111,62 @@ func (s *IMAPConnection) Connect() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	var address string
 
-	//
-	// Work out port-number
-	//
-	if u.Scheme == "imap" {
+	if strings.Contains(u.String(), ".i2p") {
 		port = 143
-	}
-	if u.Scheme == "imaps" {
-		port = 993
-	}
-	if u.Port() != "" {
-		port, _ = strconv.Atoi(u.Port())
-	}
+		address = fmt.Sprintf("%s:%d", u.Host, port)
+		sess, err := sam.I2PStreamSession("imap", "127.0.0.1:7656", "imap")
+		if err != nil {
+			return false, err
+		}
+		s.iconn, err = sess.Dial("I2P", address)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		//
+		// Work out port-number
+		//
+		if u.Scheme == "imap" {
+			port = 143
+		}
+		if u.Scheme == "imaps" {
+			port = 993
+		}
+		if u.Port() != "" {
+			port, _ = strconv.Atoi(u.Port())
+		}
+		//
+		// The target we'll connect to.
+		//
+		address = fmt.Sprintf("%s:%d", u.Host, port)
+		//		s.
 
-	//
-	// The target we'll connect to.
-	//
-	address := fmt.Sprintf("%s:%d", u.Host, port)
-
-	//
-	// Setup a dialer so we can have a suitable timeout
-	//
-	var dial = &net.Dialer{
-		Timeout: 5 * time.Second,
-	}
-
-	//
-	// Setup the default TLS config.
-	//
-	tlsSetup := &tls.Config{
-		InsecureSkipVerify: true,
+		if u.Scheme == "imaps" {
+			s.iconn, err = tls.Dial("tcp", address, &tls.Config{
+				MinVersion: tls.VersionTLS10,
+				MaxVersion: tls.VersionTLS12,
+				// InsecureSkipVerify means to accept whatever cert you get from the server
+				// Subject to man-in-the-middle attacks. Golang docs say only for testing.
+				InsecureSkipVerify: true,
+			})
+			if err != nil {
+				return false, err
+			}
+		} else {
+			s.iconn, err = net.Dial("tcp", address)
+			if err != nil {
+				return false, err
+			}
+		}
 	}
 
 	//
 	// Connect - using TLS or not
 	//
 	var con *client.Client
-	if port == 993 {
-		con, err = client.DialWithDialerTLS(dial, address, tlsSetup)
-	} else {
-		con, err = client.DialWithDialer(dial, address)
-	}
+	con, err = client.New(s.iconn)
 
 	//
 	// Did that connection work?
